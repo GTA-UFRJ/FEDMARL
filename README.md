@@ -106,7 +106,7 @@ O projeto passou por três etapas principais de desenvolvimento, cada uma evidenc
 
 ### Etapa 1 — SmallCNN
 
-A versão inicial utilizava uma CNN simples (SmallCNN) com 4 camadas convolucionais:
+A versão inicial utilizava uma CNN simples (SmallCNN):
 
 | Camada | Configuração |
 |---|---|
@@ -116,7 +116,7 @@ A versão inicial utilizava uma CNN simples (SmallCNN) com 4 camadas convoluciona
 | Saída | FC(2048, 256, 10) |
 | Otimizador | SGD (momentum=0.9, lr=0.01) |
 
-Com essa arquitetura o agente VDN já demonstrou superioridade sobre a seleção aleatória (FedAvg), atingindo ~67% de acurácia contra ~50% do FedAvg com 40% dos clientes atacantes ao longo de 500 rodadas. A rede pequena, por gerar deltas de menor magnitude, apresentava estabilidade natural contra ataques.
+Com essa arquitetura o agente VDN já demonstrou superioridade sobre a seleção aleatória (FedAvg), atingindo ~67% de acurácia contra ~55% do FedAvg com 40% dos clientes atacantes ao longo de 500 rodadas. A rede pequena, por gerar deltas de menor magnitude, apresentava estabilidade natural contra ataques.
 
 ![SmallCNN — FedAvg vs MARL com 40% atacantes](assets/smallcnn_results.png)
 
@@ -124,7 +124,7 @@ Com essa arquitetura o agente VDN já demonstrou superioridade sobre a seleção al
 
 ### Etapa 2 — ResNet18 sem mecanismos de estabalização
 
-A substituição pela ResNet18 adaptada para CIFAR-10 (conv1 3×3, sem maxpool, BatchNorm padrão) visava aumentar a capacidade do modelo e aproximar os resultados do estado da arte. Porém, sem mecanismos de defesa, os deltas de maior magnitude da ResNet18 amplificavam drasticamente o impacto dos atacantes, causando quedas bruscas e recorrentes de acurácia que tornavam o treinamento instável.
+A substituição pela ResNet18 adaptada para CIFAR-10 (conv1 3×3, sem maxpool, BatchNorm padrão) visava aumentar a capacidade do modelo e aproximar os resultados do estado da arte. Porém, sem mecanismos de estabilização, os deltas de maior magnitude da ResNet18 amplificavam drasticamente o impacto dos atacantes, causando quedas bruscas e recorrentes de acurácia que tornavam o treinamento instável.
 
 ![ResNet18 sem norm filtering nem clipping — oscilações severas](assets/resnet_no_defense.png)
 
