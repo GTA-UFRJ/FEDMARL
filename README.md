@@ -1,52 +1,42 @@
 ClientSelection — Seleção de Clientes Federados usando Aprendizado por Reforço Multiagente
 
-Este repositório contém a implementação de um mecanismo de seleção de clientes para **Aprendizado Federado (FL)** baseado em **Value Decomposition Networks (VDN)**, com foco em robustez contra ataques do tipo *label flipping*.
-
+Este repositório contém a implementação de um mecanismo de seleção de clientes para *Aprendizado Federado (FL)* baseado em *Aprendizado por Reforço Multi-Agente (MARL)*, utilizando *Value Decomposition Networks (VDN)*, com foco em robustez contra ataques do tipo label flipping.
 
 
 ---
 
 ## Descrição do Projeto
 
-Em cenários de aprendizado federado, a seleção dos clientes que participam de cada rodada de agregação impacta diretamente a qualidade e a robustez do modelo global. Clientes maliciosos (*atacantes bizantinos*) podem degradar o desempenho do modelo ao enviar atualizações envenenadas.
+Em cenários de aprendizado federado, a seleção dos clientes que participam de cada rodada de agregação impacta diretamente a qualidade e a robustez do modelo global. Clientes maliciosos podem degradar o desempenho do modelo ao enviar atualizações envenenadas.
 
-Este projeto propõe o uso de um agente de **aprendizado por reforço multi-agente** baseado em VDN para aprender a selecionar clientes de forma adaptativa, evitando atacantes e priorizando clientes honestos com base em métricas de qualidade de gradiente.
+Este projeto propõe o uso de agentes de **aprendizado por reforço multi-agente** para aprender a selecionar clientes de forma adaptativa, evitando atacantes e priorizando clientes honestos com base em métricas de contribuição .
 
 ### Componentes principais
 
 - **VDN (Value Decomposition Networks)** com Double DQN e Prioritized Experience Replay (PER) para seleção de clientes
-- **Métricas de estado do agente**: projeção momentum (`proj_mom`), probing loss (`probe_now`), staleness e streak de seleção
+- **Métricas de estado do agente**: projeção de gradiente (proj), perda de generalização (gener), estagnação (estag) e série de seleções (serie)
 - **Ataque**: *Targeted Label Flipping* determinístico com fração configurável de atacantes
-- **Agregação robusta**: FedAvg
+- **Mecanismo de agregação **: FedAvg
 - **Distribuição de dados**: Dirichlet não-IID com alpha configurável
 
 ### Arquitetura do experimento
 
 Cada rodada é dividida em duas fases:
 
-1. **Fase de métricas** — todos os 50 clientes treinam por `local_steps` passos curtos. As métricas (`proj_mom`, `probe_now`, `fo`) são calculadas e enviadas ao agente.
+1. **Fase de métricas** — todos os 50 clientes treinam por `local_steps` passos curtos. As métricas (`proj`, `gener`) são calculadas e usadas como variáveis de estado.
 2. **Fase de treino** — apenas os K clientes selecionados pelo agente treinam por `local_epochs` épocas completas. Os deltas são agregados via FedAvg
 ---
 
+
 ## Instalação
-
-### Requisitos
-
-- Python 3.11+
-- PyTorch 2.0+
-- CUDA (recomendado)
-
-### Dependências
-
 ```bash
-pip install torch torchvision numpy
+pip install -r requirements.txt
 ```
 
 ### Clone o repositório
 
 ```bash
 git clone https://github.com/braiton1277/ClientSelection.git
-cd ClientSelection
 ```
 
 ---
@@ -73,7 +63,6 @@ run_experiment(
     run_vdn=True,          # roda track VDN
     initial_flip_fraction=0.4,
     flip_rate_initial=1.0,    
-    flip_add_fraction=0.20,
     local_lr=0.005,
     local_steps=10,
     local_epochs=5,
@@ -91,10 +80,10 @@ Os resultados são salvos automaticamente em um arquivo `.json` no diretório de s
 ClientSelection/
 +-- main.py           # ponto de entrada, configuração dos hiperparâmetros
 +-- experiment.py     # loop principal do experimento (tracks RANDOM e VDN)
-+-- server.py         # treino local, agregação FedMedian, métricas de servidor
++-- server.py         # treino local, agregação, métricas de servidor
 +-- agent.py          # VDNSelector, AgentMLP, PrioritizedReplayJoint
 +-- metrics.py        # eval_acc, eval_loss, probing_loss, windowed_reward
-+-- data.py           # split Dirichlet, SwitchableTargetedLabelFlipSubset
++-- data.py           # split Dirichlet
 +-- model.py          # ResNet18 adaptada para CIFAR-10
 +-- config.py         # DEVICE, SEED, seed_worker
 +-- flower/           # implementação experimental com Flower 1.26 (em desenvolvimento)
@@ -130,7 +119,7 @@ Com essa arquitetura o agente VDN já demonstrou superioridade sobre a seleção al
 
 ---
 
-### Etapa 2 — ResNet18 sem defesa
+### Etapa 2 — ResNet18 sem mecanismos de estabalização
 
 A substituição pela ResNet18 adaptada para CIFAR-10 (conv1 3×3, sem maxpool, BatchNorm padrão) visava aumentar a capacidade do modelo e aproximar os resultados do estado da arte. Porém, sem mecanismos de defesa, os deltas de maior magnitude da ResNet18 amplificavam drasticamente o impacto dos atacantes, causando quedas bruscas e recorrentes de acurácia que tornavam o treinamento instável.
 
