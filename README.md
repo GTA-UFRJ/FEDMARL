@@ -132,7 +132,7 @@ Com essa arquitetura o agente VDN já demonstrou superioridade sobre a seleção al
 
 ### Etapa 2 — ResNet18 sem defesa
 
-A substituição pela ResNet18 adaptada para CIFAR-10 (conv1 3×3, sem maxpool, BatchNorm padrão) visava aumentar a capacidade do modelo e aproximar os resultados do estado da arte (~85–88% sem ataque). Porém, sem mecanismos de defesa, os deltas de maior magnitude da ResNet18 amplificavam drasticamente o impacto dos atacantes, causando quedas bruscas e recorrentes de acurácia que tornavam o treinamento instável.
+A substituição pela ResNet18 adaptada para CIFAR-10 (conv1 3×3, sem maxpool, BatchNorm padrão) visava aumentar a capacidade do modelo e aproximar os resultados do estado da arte. Porém, sem mecanismos de defesa, os deltas de maior magnitude da ResNet18 amplificavam drasticamente o impacto dos atacantes, causando quedas bruscas e recorrentes de acurácia que tornavam o treinamento instável.
 
 ![ResNet18 sem norm filtering nem clipping — oscilações severas](assets/resnet_no_defense.png)
 
