@@ -102,7 +102,7 @@ ClientSelection/
 
 ## Evolução do Modelo
 
-O projeto passou por três etapas principais de desenvolvimento, cada uma evidenciando limitações e motivando as melhorias seguintes.
+O projeto passou por três etapas principais de desenvolvimento, cada uma evidenciando limitações e motivando as melhorias seguintes. Os exemplos a seguir adotam a mesma configuração base: N = 50 clientes, K = 15 selecionados por rodada, 40% de clientes atacantes com inversão total dos rótulos (100% de label flipping).
 
 ### Etapa 1 — SmallCNN
 
@@ -138,11 +138,29 @@ A adição de três mecanismos de defesa na agregação resolveu a instabilidade:
 |---|---|---|
 | Norm filtering | `2.0 × median_norm` | Remove deltas com norma anômala antes da agregação |
 | Gradient clipping | `0.25 × median_norm` | Limita a magnitude total da atualização por rodada |
-| FedMedian | — | Agrega pela mediana elemento a elemento, resistente a outliers |
+| FedMedian | — | Agrega pela mediana |
 
-Com essas defesas, o agente VDN mantém acurácia estável em torno de **80–85%** ao longo de 350 rodadas, enquanto o FedAvg com seleção aleatória oscila continuamente devido à presença dos atacantes.
+Com essas defesas, o agente VDN mantém acurácia estável em torno de **85%** ao longo de 350 rodadas, mantendo a seleção dos clientes honestos, enquanto o FedAvg com seleção aleatória oscila continuamente devido à presença dos atacantes.
 
 ![ResNet18 com FedMedian + norm filtering + clipping](assets/resnet_with_defense.png)
+
+
+A cada 20 rodadas, é impresso o ranking dos clientes ordenado pela vantagem (`adv = Q1 - Q0`). Clientes com `adv` positivo são priorizados na seleção. O resultado abaixo ilustra a separação aprendida pelo MARL, demonstrando que a seleção prioriza os honestos:
+
+| Posição   | Cliente   |   Tipo    |     adv    |
+|-----------|-----------|-----------|------------|
+| 1º        | 41        |  HONEST   |  +0.083774 |
+| 2º        | 06        |  HONEST   |  +0.074431 |
+| 3º        | 23        |  HONEST   |  +0.070137 |
+| 4º        | 24        |  HONEST   |  +0.068502 |
+| ...       | ...       |   ...     |     ...    |
+| 47º       | 12        | ATTACKER  |  -0.144135 |
+| 48º       | 31        | ATTACKER  |  -0.142081 |
+| 49º       | 12        | ATTACKER  |  -0.144135 |
+| 50º       | 30        | ATTACKER  |  -0.187876 |
+
+
+
 
 ---
 
