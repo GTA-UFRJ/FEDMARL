@@ -1,4 +1,4 @@
-lientSelection — Seleção de Clientes Federados usando Aprendizado por Reforço Multiagente
+ClientSelection — Seleção de Clientes Federados usando Aprendizado por Reforço Multiagente
 
 Este repositório contém a implementação de um mecanismo de seleção de clientes para **Aprendizado Federado (FL)** baseado em **Value Decomposition Networks (VDN)**, com foco em robustez contra ataques do tipo *label flipping*.
 
