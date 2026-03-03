@@ -28,19 +28,16 @@ Cada rodada é dividida em duas fases:
 ---
 
 
+## Instalação
+```bash
+pip install -r requirements.txt
+```
 
 ### Clone o repositório
 
 ```bash
 git clone https://github.com/braiton1277/ClientSelection.git
 ```
-
-### Instalação
-```bash
-pip install -r requirements.txt
-```
-
-
 
 ---
 
