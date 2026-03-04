@@ -64,11 +64,15 @@ def local_train_delta(
     nesterov: bool = True,
 ) -> torch.Tensor:
     """
-    Trains a copy of the global model for a fixed number of SGD steps
-    and returns the weight delta. Used in the metrics phase for all clients.
+    Computes the weight delta of a client by training a local copy of the
+    global model for a fixed number of SGD steps.
+
+    This function is used in the metrics phase to compute proj for all clients:
+    the returned delta is projected onto the server gradient direction to measure
+    client alignment.
 
     Args:
-        global_model: global model to start from
+        global_model: global model to copy and train from
         train_loader: client training dataloader
         lr:           SGD learning rate
         steps:        number of SGD steps
