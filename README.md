@@ -15,15 +15,15 @@ This project proposes the use of **multi-agent reinforcement learning** agents t
 - **VDN (Value Decomposition Networks)** with Double DQN and Prioritized Experience Replay (PER) for client selection
 - **Agent state metrics**: gradient projection (proj), generalization loss (gener), staleness (estag) and selection streak (serie)
 - **Attack**: Deterministic Targeted Label Flipping with configurable attacker fraction
-- **Aggregation mechanism**: FedAvg with norm filtering, gradient clipping and FedMedian
+- **Aggregation mechanism**: FedAvg 
 - **Data distribution**: Non-IID Dirichlet split with configurable alpha
 
 ### Experiment Architecture
 
 Each round is divided into two phases:
 
-1. **Metrics phase** — all 50 clients train for `local_steps` short steps. The metrics (`proj`, `gener`) are computed and used as state variables.
-2. **Training phase** — only the K clients selected by the agent train for `local_epochs` full epochs. The deltas are aggregated via FedAvg.
+1. **Metrics phase** — all 50 clients train for `local_steps`. The metrics (`proj`, `gener`) are computed and used as state variables.
+2. **Training phase** — only the K clients selected by the agent train for `local_epochs`. The deltas are aggregated via FedAvg.
 
 ---
 
@@ -174,7 +174,7 @@ Replacing with ResNet18 adapted for CIFAR-10 (3×3 conv1, no maxpool, standard B
 
 ### Stage 3 — ResNet18 with FedMedian + Norm Filtering + Clipping
 
-Adding three defense mechanisms to the aggregation resolved the instability:
+Adding three mechanisms to the aggregation resolved the instability:
 
 |   Mechanism      |       Configuration      |                         Effect                         |
 |------------------|--------------------------|--------------------------------------------------------|
@@ -182,7 +182,7 @@ Adding three defense mechanisms to the aggregation resolved the instability:
 |Gradient clipping | `0.25 × median_norm`     | Limits the total update magnitude per round            |
 |FedMedian         |           —              | Aggregates by coordinate-wise median                   |
 
-With these defenses, the VDN agent maintains stable accuracy around **85%** over 350 rounds while consistently selecting honest clients, whereas FedAvg with random selection oscillates continuously due to the presence of attackers.
+With Those mechanisms, the VDN agent maintains stable accuracy around **85%** over 350 rounds while consistently selecting honest clients, whereas FedAvg with random selection oscillates continuously due to the presence of attackers.
 
 ![ResNet18 with FedMedian + norm filtering + clipping](assets/resnet_with_defense.png)
 
