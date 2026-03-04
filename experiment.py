@@ -378,7 +378,7 @@ def run_experiment(
                 a_rand = eval_acc(model_rand, test_loader, max_batches=80)
 
                 # metrics using steps
-                _, _, _, _, _ = compute_deltas_proj_mom_probe_now(
+                _, _, _, _ = compute_deltas_proj_mom_probe_now(
                     model_rand, client_train_loaders, client_eval_loaders, val_loader,
                     local_lr, local_steps, probe_batches=probe_batches,
                     mom=None, mom_beta=mom_beta, round_seed=round_seed + 1,
@@ -406,7 +406,7 @@ def run_experiment(
                 
 
                 # metrics using steps 
-                _, proj_mom_v, probe_now_v, fo_v, mom_v = compute_deltas_proj_mom_probe_now(
+                _, proj_mom_v, probe_now_v, mom_v = compute_deltas_proj_mom_probe_now(
                     model_vdn, client_train_loaders, client_eval_loaders, val_loader,
                     local_lr, local_steps, probe_batches=probe_batches,
                     mom=mom_v, mom_beta=mom_beta, round_seed=round_seed + 2,
