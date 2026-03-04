@@ -79,7 +79,7 @@ parameter controls the fraction of samples flipped per attacking client.
 
 ### Clone the repository
 ```bash
-git clone https://github.com/braiton1277/ClientSelection.git
+git clone https://github.com/GTA-UFRJ/FEDMARL.git
 ```
 
 ### Install dependencies

@@ -289,7 +289,7 @@ def apply_fedavg(
 
     avg_dw = torch.stack(tensors, dim=0).median(dim=0).values
     # clipping do delta agregado final
-    max_norm = median_norm * 0.1
+    max_norm = median_norm * 0.25
     avg_norm = avg_dw.norm().item()
     if avg_norm > max_norm:
         avg_dw = avg_dw * (max_norm / avg_norm)

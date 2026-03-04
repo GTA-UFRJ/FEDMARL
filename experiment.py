@@ -1,5 +1,10 @@
 """
 Main experiment loop: runs RANDOM and VDN client selection tracks in parallel.
+# ---- State metrics ----
+# proj, gener : computed in server.py -> compute_deltas_proj_mom_and_probe()
+# estag, serie: updated in server.py -> update_staleness_streak()
+# observation vector assembled in agent.py -> build_context_matrix_vdn()
+
 """
 
 import copy

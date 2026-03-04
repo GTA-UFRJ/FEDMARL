@@ -1,3 +1,7 @@
+"""
+Evaluation metrics, parameter utilities, and training helpers.
+"""
+
 from typing import Optional
 
 import numpy as np
@@ -9,14 +13,31 @@ from torch.utils.data import DataLoader
 from config import DEVICE
 
 
-# ============================
-# Flatten / load params
-# ============================
 def flatten_params(model: nn.Module) -> torch.Tensor:
+    """
+    Flattens all model parameters into a single 1D tensor.
+
+    Args:
+        model: PyTorch model
+
+    Returns:
+        1D tensor with all parameters concatenated
+    """
     return torch.cat([p.detach().view(-1) for p in model.parameters()])
 
 
 def flatten_grads(model: nn.Module) -> torch.Tensor:
+    """
+    Flattens all model gradients into a single 1D tensor.
+    Parameters with no gradient are replaced by zeros.
+
+    Args:
+        model: PyTorch model
+
+    Returns:
+        1D tensor with all gradients concatenated
+    """
+
     grads = []
     for p in model.parameters():
         if p.grad is None:
@@ -27,6 +48,14 @@ def flatten_grads(model: nn.Module) -> torch.Tensor:
 
 
 def load_flat_params_(model: nn.Module, flat: torch.Tensor) -> None:
+    """
+    Loads a flat parameter tensor back into the model in-place.
+
+    Args:
+        model: PyTorch model to update
+        flat:  1D tensor with new parameter values
+    """
+
     offset = 0
     for p in model.parameters():
         n = p.numel()
@@ -34,11 +63,21 @@ def load_flat_params_(model: nn.Module, flat: torch.Tensor) -> None:
         offset += n
 
 
-# ============================
-# Evaluation
-# ============================
+
 @torch.no_grad()
 def eval_loss(model: nn.Module, loader: DataLoader, max_batches: int = 20) -> float:
+    """
+    Computes the average cross-entropy loss over a dataloader.
+
+    Args:
+        model:       model to evaluate
+        loader:      dataloader to evaluate on
+        max_batches: maximum number of batches to use
+
+    Returns:
+        Mean cross-entropy loss
+    """
+
     model.eval()
     total = 0.0
     n = 0
@@ -54,6 +93,18 @@ def eval_loss(model: nn.Module, loader: DataLoader, max_batches: int = 20) -> fl
 
 @torch.no_grad()
 def eval_acc(model: nn.Module, loader: DataLoader, max_batches: int = 80) -> float:
+    """
+    Computes classification accuracy over a dataloader.
+
+    Args:
+        model:       model to evaluate
+        loader:      dataloader to evaluate on
+        max_batches: maximum number of batches to use
+
+    Returns:
+        Accuracy as a float in [0, 1]
+    """
+
     model.eval()
     correct = 0
     total = 0
@@ -67,11 +118,21 @@ def eval_acc(model: nn.Module, loader: DataLoader, max_batches: int = 80) -> flo
     return correct / max(1, total)
 
 
-# ============================
-# Probing loss
-# ============================
+
 @torch.no_grad()
 def probing_loss(model: nn.Module, loader: DataLoader, batches: int = 1) -> float:
+    """
+    Computes the average cross-entropy loss over the first N batches.
+
+    Args:
+        model:   model to evaluate
+        loader:  dataloader to probe
+        batches: number of batches to use
+
+    Returns:
+        Mean cross-entropy loss
+    """
+
     model.eval()
     tot = 0.0
     n = 0
@@ -92,7 +153,22 @@ def probing_loss_random_offset(
     batches: int = 1,
     rng: Optional[np.random.RandomState] = None,
 ) -> float:
-    """Probing com offset aleatório de batches, evitando sempre avaliar os mesmos dados."""
+    """
+    Computes probing loss starting from a random batch offset.
+
+    Instead of always evaluating the first batches, starts from a random
+    position in the loader to reduce evaluation bias across rounds.
+
+    Args:
+        model:   model to evaluate
+        loader:  dataloader to probe
+        batches: number of batches to use
+        rng:     random state for offset sampling
+
+    Returns:
+        Mean cross-entropy loss over the selected batches
+    """
+
     model.eval()
     if rng is None:
         rng = np.random.RandomState(0)
@@ -124,10 +200,22 @@ def probing_loss_random_offset(
     return tot / max(1, n)
 
 
-# ============================
-# Gini coefficient
-# ============================
+
 def gini_coefficient(x: np.ndarray) -> float:
+    """
+    Computes the Gini coefficient of an array, used to measure
+    selection imbalance across clients.
+
+    A value of 0 means all clients are selected equally.
+    A value of 1 means only one client is ever selected.
+
+    Args:
+        x: array of non-negative values (e.g. per-client selection counts)
+
+    Returns:
+        Gini coefficient in [0, 1]
+    """
+
     x = np.asarray(x, dtype=np.float64)
     if x.size == 0:
         return 0.0
@@ -141,10 +229,24 @@ def gini_coefficient(x: np.ndarray) -> float:
     return float(g)
 
 
-# ============================
-# Reward helper
-# ============================
+
 def windowed_reward(loss_history: list, new_loss: float, W: int = 5) -> float:
+    """
+    Computes the normalized reward based on validation loss improvement
+    over a sliding window of previous rounds.
+
+    Defined as (mean_window_loss - new_loss) / (mean_window_loss + eps),
+    so positive values indicate improvement and negative values indicate degradation.
+
+    Args:
+        loss_history: list of previous validation losses
+        new_loss:     validation loss after the current round
+        W:            window size
+
+    Returns:
+        Normalized reward scalar
+    """
+
     if len(loss_history) == 0:
         base = new_loss
     else:
@@ -156,6 +258,22 @@ def windowed_reward(loss_history: list, new_loss: float, W: int = 5) -> float:
 
 
 def dynamic_batch_size(buf_n: int, base: int = 64, max_bs: int = 256, ratio: int = 4) -> int:
+    """
+    Computes a dynamic batch size that grows with the replay buffer size.
+
+    Doubles the batch size each time the buffer has at least ratio times
+    the current batch size, up to max_bs.
+
+    Args:
+        buf_n:  current number of transitions in the buffer
+        base:   minimum batch size
+        max_bs: maximum batch size
+        ratio:  buffer-to-batch ratio threshold for doubling
+
+    Returns:
+        Batch size to use for the current training step
+    """
+    
     bs = int(base)
     while (bs < max_bs) and (buf_n >= ratio * bs):
         bs *= 2
