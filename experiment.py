@@ -1,3 +1,7 @@
+"""
+Main experiment loop: runs RANDOM and VDN client selection tracks in parallel.
+"""
+
 import copy
 import json
 import random
@@ -10,21 +14,15 @@ import torch
 from torch.utils.data import DataLoader, Subset
 from torchvision import datasets, transforms
 
-from config import DEVICE, SEED, log_step, seed_worker
-from model import SmallCNN
-from data import (
-    SwitchableTargetedLabelFlipSubset,
-    make_server_val_balanced,
-    make_clients_dirichlet_indices,
-)
-from metrics import eval_acc, eval_loss, gini_coefficient, windowed_reward, dynamic_batch_size
-from server import (
-    compute_deltas_proj_mom_probe_now_and_fo,
-    local_train_selected,
-    apply_fedavg,
-    update_staleness_streak,
-)
 from agent import VDNSelector, build_context_matrix_vdn
+from config import DEVICE, SEED, log_step, seed_worker
+from data import (SwitchableTargetedLabelFlipSubset,
+                  make_clients_dirichlet_indices, make_server_val_balanced)
+from metrics import (dynamic_batch_size, eval_acc, eval_loss, gini_coefficient,
+                     windowed_reward)
+from model import SmallCNN
+from server import (apply_fedavg, compute_deltas_proj_mom_probe_now,
+                    local_train_selected, update_staleness_streak)
 
 
 def run_experiment(
@@ -32,7 +30,7 @@ def run_experiment(
     n_clients: int = 50,
     k_select: int = 15,
     dir_alpha: float = 0.3,
-    # Ataque
+    # Attack
     initial_flip_fraction: float = 0.0,
     flip_add_fraction: float = 0.20,
     attack_rounds: List[int] = None,
@@ -40,11 +38,11 @@ def run_experiment(
     flip_rate_new_attack: float = 1.0,
     targeted_only_map_classes: bool = True,
     target_map: Optional[Dict[int, int]] = None,
-    # Treino
+    # Train
     max_per_client: int = 2500,
     local_lr: float = 0.005,
-    local_steps: int = 10,        # usado nas métricas (todos os 50 clientes)
-    local_epochs: int = 5,        # usado no FedAvg (só os K selecionados)
+    local_steps: int = 10,        
+    local_epochs: int = 5,        
     run_random: bool = True,
     run_vdn: bool = True,
     probe_batches: int = 5,
@@ -82,6 +80,77 @@ def run_experiment(
     print_advfo_every: int = 20,
     out_dir: str = ".",
 ):
+    """
+    Runs a federated learning experiment comparing random client selection (FedAvg)
+    against VDN-based selection (MARL) under non-IID data and label flipping attacks.
+
+    Each round is divided into two phases:
+    - Metrics phase: all clients train for local_steps steps to compute proj and gener.
+    - Training phase: only the K selected clients train for local_epochs full epochs,
+      with deltas aggregated via FedAvg.
+
+    Two independent tracks are maintained with separate models:
+    - RANDOM: selects K clients uniformly at random each round (FedAvg baseline)
+    - VDN: selects K clients using the learned MARL policy
+
+    Supports cumulative attacks: new attackers can be introduced mid-training
+    at rounds specified by attack_rounds, converting flip_add_fraction of the
+    remaining honest clients at each scheduled round.
+
+    Results are saved to a JSON file containing per-round test accuracy and
+    per-client selection counts for both tracks.
+
+    Args:
+        rounds:                    number of federated training rounds
+        n_clients:                 total number of clients
+        k_select:                  number of clients selected per round (K)
+        dir_alpha:                 Dirichlet concentration parameter for non-IID split
+        initial_flip_fraction:     fraction of clients that are attackers from round 1
+        flip_add_fraction:         fraction of clients converted to attackers at each attack round
+        attack_rounds:             list of rounds at which new attackers are introduced
+        flip_rate_initial:         label flip rate for initial attackers (0.0 to 1.0)
+        flip_rate_new_attack:      label flip rate for attackers added mid-training
+        targeted_only_map_classes: if True, only flips classes present in target_map
+        target_map:                custom class mapping for targeted flipping
+        max_per_client:            maximum number of samples per client
+        local_lr:                  SGD learning rate for local training
+        local_steps:               steps used in the metrics phase (all clients)
+        local_epochs:              epochs used in the training phase (selected clients only)
+        run_random:                whether to run the random selection track
+        run_vdn:                   whether to run the VDN selection track
+        probe_batches:             number of batches used to compute gener
+        mom_beta:                  EMA coefficient for server gradient momentum
+        momentum:                  SGD momentum
+        weight_decay:              SGD weight decay
+        nesterov:                  whether to use Nesterov momentum
+        reward_window_W:           window size for windowed reward computation
+        marl_eps:                  exploration probability for Top-K perturbation
+        marl_swap_m:               number of clients swapped during exploration
+        marl_lr:                   Adam learning rate for the Q-network
+        marl_gamma:                discount factor for the VDN agent
+        marl_hidden:               hidden layer size of the Q-network
+        marl_target_sync_every:    target network sync frequency
+        warmup_transitions:        minimum buffer size before VDN training begins
+        start_train_round:         earliest round at which VDN training can start
+        updates_per_round:         Q-network optimization steps per round
+        train_every:               VDN training frequency in rounds
+        buf_size:                  replay buffer capacity
+        batch_base:                minimum batch size for VDN training
+        batch_max:                 maximum batch size for VDN training
+        batch_buffer_ratio:        buffer-to-batch ratio for dynamic batch sizing
+        per_alpha:                 PER prioritization exponent
+        per_beta_start:            initial PER importance sampling exponent
+        per_beta_end:              final PER importance sampling exponent
+        per_beta_steps:            steps for PER beta annealing
+        per_eps:                   PER numerical stability constant
+        val_shuffle:               whether to shuffle the validation loader
+        val_per_class:             number of validation samples per class
+        eval_max_batches:          maximum batches used for loss evaluation
+        print_every:               summary print frequency in rounds
+        print_advfo_every:         client ranking print frequency in rounds
+        out_dir:                   directory where the JSON results file is saved
+    """
+
     if attack_rounds is None:
         attack_rounds = [150]
     attack_rounds = sorted(list(set(int(x) for x in attack_rounds)))
@@ -187,7 +256,7 @@ def run_experiment(
         train_pool, n_clients=n_clients, alpha=dir_alpha, seed=SEED + 777
     )
 
-    # ---------- Ataque inicial ----------
+    # ---------- Initial attack ----------
     n_init = int(round(initial_flip_fraction * n_clients))
     rng_init = np.random.RandomState(SEED + 999)
     attacked_set = set(
@@ -274,7 +343,7 @@ def run_experiment(
         for t in range(1, rounds + 1):
             log_step(f"\n[round {t}/{rounds}]")
 
-            # ===== Ataque acumulativo =====
+            # ===== Cumulative attack =====
             if t in attack_rounds:
                 n_add = int(round(flip_add_fraction * n_clients))
                 candidates = [i for i in range(n_clients) if i not in attacked_set]
@@ -303,8 +372,8 @@ def run_experiment(
             if run_random:
                 a_rand = eval_acc(model_rand, test_loader, max_batches=80)
 
-                # métricas com steps (rápido, todos os clientes)
-                deltas_r, _, _, _, _ = compute_deltas_proj_mom_probe_now_and_fo(
+                # metrics using steps
+                _, _, _, _, _ = compute_deltas_proj_mom_probe_now(
                     model_rand, client_train_loaders, client_eval_loaders, val_loader,
                     local_lr, local_steps, probe_batches=probe_batches,
                     mom=None, mom_beta=mom_beta, round_seed=round_seed + 1,
@@ -314,7 +383,7 @@ def run_experiment(
                 K = min(k_select, n_clients)
                 sel_r = rng_rand_sel.sample(range(n_clients), K)
 
-                # FedAvg com epochs completos (só os selecionados)
+                # FedAvg using epochs 
                 deltas_r_full = local_train_selected(
                     model_rand, client_train_loaders, sel_r,
                     lr=local_lr, epochs=local_epochs,
@@ -329,10 +398,10 @@ def run_experiment(
             # ============================================================
             if run_vdn:
                 acc_v = eval_acc(model_vdn, test_loader, max_batches=80)
-                _l_before = eval_loss(model_vdn, val_loader, max_batches=eval_max_batches)
+                
 
-                # métricas com steps (rápido, todos os clientes)
-                deltas_v, proj_mom_v, probe_now_v, fo_v, mom_v = compute_deltas_proj_mom_probe_now_and_fo(
+                # metrics using steps 
+                _, proj_mom_v, probe_now_v, fo_v, mom_v = compute_deltas_proj_mom_probe_now(
                     model_vdn, client_train_loaders, client_eval_loaders, val_loader,
                     local_lr, local_steps, probe_batches=probe_batches,
                     mom=mom_v, mom_beta=mom_beta, round_seed=round_seed + 2,
@@ -363,13 +432,13 @@ def run_experiment(
                 if print_advfo_every and t % print_advfo_every == 0:
                     adv = (q_all[:, 1] - q_all[:, 0]).astype(np.float32)
                     order = np.argsort(-adv)
-                    print(f"[ADV/FO @ {t}] cid | flag | adv | FO")
+                    print(f"[ADV/FO @ {t}] cid | flag | adv")
                     for cid in order.tolist():
                         flag = "ATTACKER" if cid in attacked_set else "HONEST"
-                        print(f"  {cid:02d} | {flag:8s} | adv={adv[cid]:+.6f} | FO={float(fo_v[cid]):+.6f}")
+                        print(f"  {cid:02d} | {flag:8s} | adv={adv[cid]:+.6f}")
                     print("")
 
-                # FedAvg com epochs completos (só os selecionados)
+                # FedAvg using epochs 
                 deltas_v_full = local_train_selected(
                     model_vdn, client_train_loaders, sel_v,
                     lr=local_lr, epochs=local_epochs,

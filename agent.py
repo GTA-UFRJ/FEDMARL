@@ -9,10 +9,22 @@ import torch.nn.functional as F
 from config import DEVICE
 
 
-# ============================
-# PER buffer (joint transitions)
-# ============================
 class PrioritizedReplayJoint:
+    """
+    Prioritized Experience Replay (PER) buffer for joint transitions of N agents.
+
+    Stores transitions as (obs, act, r, obs2, done) where obs and obs2 have shape
+    (N, d_in), enabling sampling proportional to temporal difference error.
+
+    Args:
+        capacity: maximum buffer size
+        n_agents: number of agents
+        d_in:     local observation dimension per agent
+        alpha:    prioritization exponent (0 = uniform, 1 = fully prioritized)
+        eps:      numerical stability constant for priorities
+        seed:     random seed for reproducibility
+    """
+
     def __init__(
         self,
         capacity: int,
@@ -42,6 +54,17 @@ class PrioritizedReplayJoint:
         self.rng = np.random.default_rng(int(seed))
 
     def add(self, obs, act, r, obs2, done: bool):
+        """
+        Adds a transition to the buffer with maximum priority.
+
+        Args:
+            obs:  joint observations, shape (N, d_in)
+            act:  joint actions, shape (N,)
+            r:    scalar global reward
+            obs2: next joint observations, shape (N, d_in)
+            done: episode termination flag
+        """
+
         self.obs[self.ptr] = obs.astype(np.float32)
         self.act[self.ptr] = act.astype(np.uint8)
         self.r[self.ptr] = float(r)
@@ -53,6 +76,17 @@ class PrioritizedReplayJoint:
         self.n = min(self.n + 1, self.capacity)
 
     def sample(self, batch_size: int, beta: float = 0.4):
+        """
+        Samples a batch of transitions weighted by priorities.
+
+        Args:
+            batch_size: number of transitions to sample
+            beta:       importance sampling correction exponent (0 = no correction, 1 = full correction)
+
+        Returns:
+            Tuple (obs, act, r, obs2, done, idx, weights) where weights are importance sampling weights
+        """
+        
         bs = min(int(batch_size), self.n)
         assert bs > 0
 
@@ -76,15 +110,32 @@ class PrioritizedReplayJoint:
         )
 
     def update_priorities(self, idx: np.ndarray, td_abs: np.ndarray):
+        """
+        Updates transition priorities after a training step.
+
+        Args:
+            idx:    indices of the sampled transitions
+            td_abs: corresponding absolute temporal difference errors
+        """
+
         td_abs = np.asarray(td_abs, dtype=np.float32)
         self.p[idx] = td_abs + self.eps
         self.max_p = float(max(self.max_p, float(td_abs.max(initial=0.0))))
 
 
-# ============================
-# Q-network (MLP por agente)
-# ============================
+
 class AgentMLP(nn.Module):
+    """
+    Individual Q-network for each agent — two-hidden-layer MLP.
+
+    Args:
+        d_in:   local observation dimension
+        hidden: number of neurons in hidden layers
+
+    Input:  tensor (B, d_in)
+    Output: tensor (B, 2) with Q(o, 0) and Q(o, 1)
+    """
+
     def __init__(self, d_in: int, hidden: int = 128):
         super().__init__()
         self.net = nn.Sequential(
@@ -99,10 +150,36 @@ class AgentMLP(nn.Module):
         return self.net(x)
 
 
-# ============================
-# VDN selector (top-K + Double-DQN)
-# ============================
+
 class VDNSelector:
+    """
+    Client selector based on Value Decomposition Networks (VDN) with Double DQN and PER.
+
+    Each agent estimates Q(o_i, a_i) individually. The joint value function is decomposed
+    as Qtot = sum Q_i, enabling cooperative training from a single global reward.
+    Top-K selection chooses the K clients with highest advantage Q(o,1) - Q(o,0).
+
+    Args:
+        n_agents:          number of clients/agents
+        d_in:              local observation dimension
+        k_select:          number of clients selected per round (K)
+        hidden:            neurons in Q-network hidden layers
+        lr:                Adam learning rate
+        weight_decay:      L2 regularization
+        gamma:             discount factor
+        grad_clip:         maximum norm for gradient clipping
+        target_sync_every: target network sync frequency (in train calls)
+        buf_size:          replay buffer capacity
+        batch_size:        default batch size
+        train_steps:       optimization steps per train call
+        per_alpha:         PER prioritization exponent
+        per_beta_start:    initial PER beta
+        per_beta_end:      final PER beta
+        per_beta_steps:    number of steps for beta annealing
+        per_eps:           PER numerical stability constant
+        double_dqn:        use Double DQN to reduce overestimation bias
+        seed:              random seed for reproducibility
+    """
     def __init__(
         self,
         n_agents: int,
@@ -125,6 +202,7 @@ class VDNSelector:
         double_dqn: bool = True,
         seed: int = 0,
     ):
+        
         self.n_agents = int(n_agents)
         self.d_in = int(d_in)
         self.k_select = int(k_select)
@@ -161,18 +239,45 @@ class VDNSelector:
         self.np_rng = np.random.default_rng(int(seed) + 999)
 
     def _beta(self) -> float:
+        """
+        Computes the current importance sampling beta via linear annealing.
+
+        Returns:
+            Beta value linearly interpolated from per_beta_start to per_beta_end
+            over per_beta_steps training calls.
+        """
         t = min(self._train_calls, self.per_beta_steps)
         frac = t / max(1, self.per_beta_steps)
         return self.per_beta_start + frac * (self.per_beta_end - self.per_beta_start)
 
     @torch.no_grad()
     def _q_all_agents(self, obs: np.ndarray) -> np.ndarray:
+        """
+        Computes Q-values for all agents  (used internally for Top-K selection).
+
+        Args:
+            obs: joint observations, shape (N, d_in)
+
+        Returns:
+            Q-values array, shape (N, 2), dtype float64
+        """
+        
         self.q.eval()
         x = torch.tensor(obs, dtype=torch.float32, device=DEVICE)
         return self.q(x).detach().cpu().numpy().astype(np.float64)
 
     @torch.no_grad()
     def q_values(self, obs: np.ndarray) -> np.ndarray:
+        """
+        Computes Q-values for all agents  (used externally for logging and ranking).
+
+        Args:
+            obs: joint observations, shape (N, d_in)
+
+        Returns:
+            Q-values array, shape (N, 2), dtype float32
+        """
+        
         self.q.eval()
         x = torch.tensor(obs, dtype=torch.float32, device=DEVICE)
         return self.q(x).detach().cpu().numpy().astype(np.float32)
@@ -184,6 +289,19 @@ class VDNSelector:
         swap_m: int = 2,
         force_random: bool = False,
     ) -> Tuple[np.ndarray, List[int]]:
+        """
+        Selects the K best clients with exploration via Top-K.
+
+        Args:
+            obs:          joint observations, shape (N, d_in)
+            eps:          probability of performing a random swap
+            swap_m:       number of clients swapped during exploration
+            force_random: forces random selection (used during warm-up)
+
+        Returns:
+            Tuple (actions, selected) where actions is a binary vector (N,) and selected is a list of indices
+        """
+
         n = obs.shape[0]
         K = min(self.k_select, n)
         q = self._q_all_agents(obs)
@@ -219,11 +337,33 @@ class VDNSelector:
         return a, sel
 
     def add_transition(self, obs, act, r, obs2, done: bool):
+        """
+        Stores a transition in the replay buffer.
+
+        Args:
+            obs:  joint observations for the current round, shape (N, d_in)
+            act:  binary actions executed, shape (N,)
+            r:    global reward for the round
+            obs2: joint observations for the next round, shape (N, d_in)
+            done: indicates end of federated training
+        """
+
         self.buf.add(obs=obs, act=act, r=r, obs2=obs2, done=done)
 
     def train(
         self, batch_size: Optional[int] = None, train_steps: Optional[int] = None
     ) -> Optional[float]:
+        """
+        Runs Q-network optimization steps from the replay buffer.
+
+        Args:
+            batch_size:  batch size (uses default if None)
+            train_steps: number of steps (uses default if None)
+
+        Returns:
+            Mean loss over the executed steps, or None if the buffer is empty
+        """
+
         bs_req = int(batch_size) if batch_size is not None else self.batch_size
         steps = int(train_steps) if train_steps is not None else self.train_steps
 
@@ -289,16 +429,25 @@ class VDNSelector:
         return float(np.mean(losses)) if losses else None
 
 
-# ============================
-# Estado VDN (d=5)
-# [bias, proj_mom, probe_loss_now, staleness_norm, streak_norm]
-# ============================
 def build_context_matrix_vdn(
     projection_mom: np.ndarray,
     probe_now: np.ndarray,
     staleness: np.ndarray,
     streak: np.ndarray,
 ) -> np.ndarray:
+    """
+    Builds the local observation matrix for the VDN agent.
+
+    Args:
+        projection_mom: projection of client weight delta onto the server gradient EMA (proj), shape (N,)
+        probe_now:      generalization loss of the global model on local client data (gener), shape (N,)
+        staleness:      rounds since each client was last selected, shape (N,)
+        streak:         consecutive selection count for each client, shape (N,)
+
+    Returns:
+        Observation matrix (N, 5) with columns [bias, proj, gener, estag*, serie*]
+    """
+
     proj  = projection_mom.astype(np.float32)
     probe = probe_now.astype(np.float32)
 

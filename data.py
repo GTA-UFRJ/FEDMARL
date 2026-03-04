@@ -1,20 +1,34 @@
+"""
+Dataset utilities: label flipping attack and non-IID data partitioning.
+"""
 from typing import Dict, List, Optional
 
 import numpy as np
 from torch.utils.data import Dataset, Subset
 
 
-# ============================
-# Switchable deterministic TARGETED label flipping
-# ============================
 class SwitchableTargetedLabelFlipSubset(Dataset):
     """
-    Pré-computa por amostra:
-        u[i] ~ U(0,1)
-        flipped_label[i] via um mapeamento fixo (targeted)
-    Flip em tempo de execução:
-        se enabled and u[i] < attack_rate
-    Determinístico por amostra; attack_rate controla a fração atacada.
+    Dataset wrapper that simulates a malicious client performing targeted label flipping attacks.
+
+    For each sample, a random value is pre-computed at initialization to decide
+    whether that sample will be flipped. At runtime, a sample is flipped if the
+    attack is enabled and its random value is below attack_rate — this makes the
+    attack deterministic and reproducible across runs.
+
+    The flipping follows a fixed class mapping (target_map), where each class is
+    mapped to a specific target class. By default, visually similar classes are
+    swapped (e.g. airplane <-> ship, cat <-> dog).
+
+    Args:
+        base_ds:          base PyTorch dataset
+        indices:          sample indices to use from base_ds
+        n_classes:        number of classes
+        seed:             random seed for reproducibility
+        enabled:          whether the attack is active
+        attack_rate:      fraction of samples to flip (0.0 to 1.0)
+        target_map:       dict mapping original class to target class
+        only_map_classes: if True, only flips classes present in target_map
     """
 
     def __init__(
@@ -75,13 +89,34 @@ class SwitchableTargetedLabelFlipSubset(Dataset):
             self.flipped_label[i] = y_new
 
     def set_attack(self, enabled: bool, rate: float):
+        """
+        Enables or disables the attack at runtime.
+
+        Args:
+            enabled: whether to activate label flipping
+            rate:    fraction of samples to flip
+        """
+
         self.enabled = bool(enabled)
         self.attack_rate = float(rate)
 
     def __len__(self):
+        """Returns the number of samples in the subset."""
+
         return len(self.indices)
 
     def __getitem__(self, i):
+        """
+        Returns sample i. If the attack is active and u[i] < attack_rate,
+        the original label is replaced by the precomputed flipped label.
+
+        Args:
+            i: sample index
+
+        Returns:
+            Tuple (x, y) where y is the original or flipped label
+        """
+
         x, y = self.base_ds[self.indices[i]]
         y = int(y)
         if self.enabled and (self.attack_rate > 0.0) and (self.u[i] < self.attack_rate):
@@ -89,12 +124,22 @@ class SwitchableTargetedLabelFlipSubset(Dataset):
         return x, y
 
 
-# ============================
-# Server balanced validation (from TRAIN)
-# ============================
 def make_server_val_balanced(
     ds, per_class: int = 200, n_classes: int = 10, seed: int = 0
 ) -> List[int]:
+    """
+    Builds a balanced validation set for the server by sampling equally from each class.
+
+    Args:
+        ds:        base dataset to sample from
+        per_class: number of samples per class
+        n_classes: number of classes
+        seed:      random seed for reproducibility
+
+    Returns:
+        List of indices forming the balanced validation set
+    """
+
     rng = np.random.RandomState(seed)
     label_to_idxs: Dict[int, List[int]] = {i: [] for i in range(n_classes)}
     for idx in range(len(ds)):
@@ -111,9 +156,7 @@ def make_server_val_balanced(
     return val
 
 
-# ============================
-# Dirichlet non-IID split
-# ============================
+
 def make_clients_dirichlet_indices(
     train_ds,
     n_clients: int = 50,
@@ -121,6 +164,26 @@ def make_clients_dirichlet_indices(
     seed: int = 123,
     n_classes: int = 10,
 ) -> List[List[int]]:
+    """
+    Partitions the training dataset across clients using a Dirichlet distribution,
+    simulating non-IID data heterogeneity.
+
+    Lower values of alpha produce more heterogeneous distributions, where each
+    client holds samples concentrated in fewer classes. Higher values approximate
+    a uniform (IID) distribution.
+
+    Args:
+        train_ds:  base training dataset
+        n_clients: number of federated clients
+        alpha:     Dirichlet concentration parameter
+        seed:      random seed for reproducibility
+        n_classes: number of classes
+
+    Returns:
+        List of length n_clients, where each element is a list of sample indices
+        assigned to that client
+    """
+
     rng = np.random.RandomState(seed)
 
     label_to_idxs: Dict[int, List[int]] = {i: [] for i in range(n_classes)}
