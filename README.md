@@ -32,23 +32,23 @@ Cada rodada é dividida em duas fases:
 
 O vetor de observação de cada cliente $i$ na rodada $t$ é composto pelas métricas:
 
-**Projeção de gradiente** 
+**Projeção de gradiente** -
 
 $$\text{proj}_{i,t} = \Delta w_i^\top \cdot \hat{m}_t$$
 
 $$m_t = \beta m_{t-1} + (1-\beta)\nabla_{w_t}\mathcal{L}(w_t; \mathcal{D}^{val}), \qquad \hat{m}_t = \frac{-m_t}{\|m_t\| + \epsilon}$$
 
-**Perda de generalização** 
+**Perda de generalização** -
 
 $$\text{gener}_{i,t} = \frac{1}{|\mathcal{D}|}\sum_{j=1}^{|\mathcal{D}|} \mathcal{L}\left(\hat{y}_{i,t}^{(j)}, y_{i,t}^{(j)}\right)$$
 
 **Estagnação** — 
 
-$$\text{estag}^^{\ast}_{i,t} = \frac{\text{estag}_{i,t}}{\max_{j \neq i}\, \text{estag}_{j,t} + \epsilon}$$
+$$\text{estag}^{\ast}_{i,t} = \frac{\text{estag}_{i,t}}{\max_{j \neq i}\, \text{estag}_{j,t} + \epsilon}$$
 
 **Série de seleções** — 
 
-$$\text{serie}^^{\ast}_{i,t} = \min\left(\frac{\text{serie}_{i,t}}{\text{serie}^{(\max)}}, 1\right)$$
+$$\text{serie}^{\ast}_{i,t} = \min\left(\frac{\text{serie}_{i,t}}{\text{serie}^{(\max)}}, 1\right)$$
 
 
 
