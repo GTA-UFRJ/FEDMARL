@@ -25,6 +25,38 @@ Cada rodada é dividida em duas fases:
 
 1. **Fase de métricas** — todos os 50 clientes treinam por `local_steps` passos curtos. As métricas (`proj`, `gener`) são calculadas e usadas como variáveis de estado.
 2. **Fase de treino** — apenas os K clientes selecionados pelo agente treinam por `local_epochs` épocas completas. Os deltas são agregados via FedAvg
+
+
+
+## Métricas de estado do agente
+
+O vetor de observação de cada cliente $i$ na rodada $t$ é composto pelas métricas:
+
+**Projeção de gradiente** 
+
+$$\text{proj}_{i,t} = \Delta w_i^\top \cdot \hat{m}_t$$
+
+$$m_t = \beta m_{t-1} + (1-\beta)\nabla_{w_t}\mathcal{L}(w_t; \mathcal{D}^{val}), \qquad \hat{m}_t = \frac{-m_t}{\|m_t\| + \epsilon}$$
+
+**Perda de generalização** 
+
+$$\text{gener}_{i,t} = \frac{1}{|\mathcal{D}|}\sum_{j=1}^{|\mathcal{D}|} \mathcal{L}\left(\hat{y}_{i,t}^{(j)}, y_{i,t}^{(j)}\right)$$
+
+**Estagnação** — 
+
+$$\text{estag}^^{\ast}_{i,t} = \frac{\text{estag}_{i,t}}{\max_{j \neq i}\, \text{estag}_{j,t} + \epsilon}$$
+
+**Série de seleções** — 
+
+$$\text{serie}^^{\ast}_{i,t} = \min\left(\frac{\text{serie}_{i,t}}{\text{serie}^{(\max)}}, 1\right)$$
+
+
+
+
+
+
+
+
 ---
 
 
