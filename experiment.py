@@ -342,7 +342,11 @@ def run_experiment(
     print(f"\nDEVICE={DEVICE} | N_CLIENTS={n_clients} | K={k_select} | rounds={rounds}")
     print(f"dir_alpha={dir_alpha} | attacked_init={n_init} | local_steps={local_steps}(metrics) epochs={local_epochs}(fedavg)")
     print(f"run_random={run_random} | run_vdn={run_vdn}")
-    print(f"Avg client size ~ {np.mean(client_sizes):.1f} samples\n")
+    print("\nClient dataset sizes:")
+    for cid, size in enumerate(client_sizes):
+        flag = "ATTACKER" if cid in attacked_set else "HONEST"
+        print(f"  {cid:02d} | {flag:8s} | {size} samples")
+    print(f"  mean={np.mean(client_sizes):.1f} | min={np.min(client_sizes)} | max={np.max(client_sizes)}\n")
 
     try:
         for t in range(1, rounds + 1):
