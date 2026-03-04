@@ -17,8 +17,8 @@ if __name__ == "__main__":
         dir_alpha=0.3,              # Dirichlet heterogeneity (lower = more heterogeneous)
         # ---- Tracks ----
 
-        run_random=True,            # FedAvg baseline with random selection
-        run_vdn=False,              # VDN-based MARL selection
+        run_random=False,            # FedAvg baseline with random selection
+        run_vdn=True,              # VDN-based MARL selection
 
         # ---- Initial attack ----
         initial_flip_fraction=0.4,  # fraction of clients that are attackers from round 1

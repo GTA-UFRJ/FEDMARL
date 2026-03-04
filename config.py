@@ -45,4 +45,4 @@ def log_step(msg: str):
         msg: message to print
     """
     print(msg, flush=True)
-    print(msg, flush=True)
+    
