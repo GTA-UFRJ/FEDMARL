@@ -176,15 +176,31 @@ Replacing with ResNet18 adapted for CIFAR-10 (3×3 conv1, no maxpool, standard B
 
 Adding three mechanisms to the aggregation resolved the instability:
 
-|   Mechanism      |       Configuration      |                         Effect                         |
-|------------------|--------------------------|--------------------------------------------------------|
-|Norm filtering    | `2.0 × median_norm`      | Discards deltas with anomalous norm before aggregation |
-|Gradient clipping | `0.25 × median_norm`     | Limits the total update magnitude per round            |
-|FedMedian         |           —              | Aggregates by coordinate-wise median                   |
+| Mechanism | Configuration (N=50) | Configuration (N=100) | Effect |
+|---|---|---|---|
+| Norm filtering | `2.0 × median_norm` | `2.0 × median_norm` | Discards deltas with anomalous norm before aggregation |
+| Gradient clipping | `0.25 × median_norm` | `0.1 × median_norm` | Limits the total update magnitude per round |
+| FedMedian | — | — | Aggregates by coordinate-wise median |          |
 
 With Those mechanisms, the VDN agent maintains stable accuracy around **85%** over 350 rounds while consistently selecting honest clients, whereas FedAvg with random selection oscillates continuously due to the presence of attackers.
 
+**N=50 clients, K=15 selected per round, 40% attackers:**
+
+
 ![ResNet18 with FedMedian + norm filtering + clipping](assets/resnet_with_defense.png)
+
+
+**N=100 clients, K=15 selected per round, 40% attackers:**
+
+![FedAvg vs MARL — N=100](assets/resnet_with_defense_100.png)
+
+
+The client selection histogram below confirms that the learned policy systematically
+prioritizes honest clients over attackers throughout training (N=100):
+
+![MARL selections per client](assets/selections_per_client.png)
+
+
 
 ---
 
