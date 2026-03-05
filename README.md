@@ -182,7 +182,7 @@ Adding three mechanisms to the aggregation resolved the instability:
 | Gradient clipping | `0.25 × median_norm` | `0.1 × median_norm` | Limits the total update magnitude per round |
 | FedMedian | — | — | Aggregates by coordinate-wise median |          |
 
-With Those mechanisms, the VDN agent maintains stable accuracy around **85%** over 350 rounds while consistently selecting honest clients, whereas FedAvg with random selection oscillates continuously due to the presence of attackers.
+With Those mechanisms, the VDN agent maintains stable accuracy around **85%** over 350 rounds while consistently selecting honest clients. Random selection oscillates continuously due to the presence of attackers.
 
 **N=50 clients, K=15 selected per round, 40% attackers:**
 
