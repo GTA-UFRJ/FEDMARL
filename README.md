@@ -187,7 +187,7 @@ With Those mechanisms, the VDN agent maintains stable accuracy around **85%** ov
 **N=50 clients, K=15 selected per round, 40% attackers:**
 
 
-![ResNet18 with FedMedian + norm filtering + clipping](assets/resnet_with_defense_100.png.png)
+![ResNet18 with FedMedian + norm filtering + clipping](assets/resnet_with_defense.png.)
 
 
 **N=100 clients, K=15 selected per round, 40% attackers:**
@@ -198,7 +198,7 @@ With Those mechanisms, the VDN agent maintains stable accuracy around **85%** ov
 The client selection histogram below confirms that the learned policy systematically
 prioritizes honest clients over attackers throughout training (N=100):
 
-![MARL selections per client](assets/selections_per_client.png)
+![MARL selections per client](assets/selections_per_client.png.png)
 
 
 
