@@ -187,7 +187,7 @@ With Those mechanisms, the VDN agent maintains stable accuracy around **85%** ov
 **N=50 clients, K=15 selected per round, 40% attackers:**
 
 
-![ResNet18 with FedMedian + norm filtering + clipping](assets/resnet_with_defense.png.)
+![ResNet18 with FedMedian + norm filtering + clipping](assets/resnet_with_defense.png)
 
 
 **N=100 clients, K=15 selected per round, 40% attackers:**
