@@ -166,7 +166,7 @@ With this architecture the VDN agent already demonstrated superiority over rando
 
 ### Stage 2 — ResNet18 without stabilization mechanisms
 
-Replacing with ResNet18 adapted for CIFAR-10 (3×3 conv1, no maxpool, standard BatchNorm) aimed to increase model capacity and bring results closer to state of the art. However, without stabilization mechanisms, the higher magnitude deltas from ResNet18 drastically amplified the impact of attackers, causing sharp and recurrent accuracy drops that made training unstable.
+Replacing with ResNet18 adapted for CIFAR-10 (3×3 conv1, no maxpool, standard BatchNorm) and adding data augmentation during local training aimed to increase model capacity and bring results closer to state of the art. However, without stabilization mechanisms, the higher magnitude deltas from ResNet18 drastically amplified the impact of attackers, causing sharp and recurrent accuracy drops that made training unstable.
 
 ![ResNet18 without norm filtering or clipping — severe oscillations](assets/resnet_no_defense.png)
 
